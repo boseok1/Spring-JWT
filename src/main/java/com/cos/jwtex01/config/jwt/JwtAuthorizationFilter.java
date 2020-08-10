@@ -21,9 +21,12 @@ import com.cos.jwtex01.repository.UserRepository;
 
 // 인가
 public class JwtAuthorizationFilter extends BasicAuthenticationFilter{
-	
+	// BasicAuthenticationFilter Header전부 분석함
+	// 그러고 SecurityContextHolder에 result를 넣어줌
 	private UserRepository userRepository;
 	
+	// private AuthenticationManager authenticationManager; protected로 getter가 있어서
+	// 할필요없음
 	public JwtAuthorizationFilter(AuthenticationManager authenticationManager, UserRepository userRepository) {
 		super(authenticationManager);
 		this.userRepository = userRepository;
@@ -32,15 +35,21 @@ public class JwtAuthorizationFilter extends BasicAuthenticationFilter{
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
 			throws IOException, ServletException {
+		System.out.println("JwtAuthorizationFilter 진입확인");
+		//서명하는곳 
+		//서명할때 첫번째로 header값 확인
 		String header = request.getHeader(JwtProperties.HEADER_STRING);
 		if(header == null || !header.startsWith(JwtProperties.TOKEN_PREFIX)) {
-			chain.doFilter(request, response);
+			//빈값 확인, token의 bearer확인
+			chain.doFilter(request, response); // 아무것도 안하고 돌려 보냄
 		}
 		System.out.println("header : "+header);
 		String token = request.getHeader(JwtProperties.HEADER_STRING)
-				.replace(JwtProperties.TOKEN_PREFIX, "");
+				// JWT에 들어가면 안되는 값들 (공백, == , =) =은 패딩값
+				.replace(JwtProperties.TOKEN_PREFIX, "") //Bearer 날려야 진정한 토큰이라서
+		        .replace("=", "").replace(" ", "");
 		
-		// 토큰 검증 (이게 인증이기 때문에 AuthenticationManager도 필요 없음)
+		// 5.토큰 검증 (이게 인증이기 때문에 AuthenticationManager도 필요 없음)
 		// 내가 SecurityContext에 집적접근해서 세션을 만들때 자동으로 UserDetailsService에 있는 loadByUsername이 호출됨.
 		String username = JWT.require(Algorithm.HMAC512(JwtProperties.SECRET)).build().verify(token)
 				.getClaim("username").asString();

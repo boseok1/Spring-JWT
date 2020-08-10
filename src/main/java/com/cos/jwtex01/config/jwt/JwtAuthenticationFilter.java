@@ -24,52 +24,65 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
 
+//인증페이지
 @RequiredArgsConstructor
-public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilter{
-
+public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
+	// 모든것을 오버라이드해서 sysout 찍으면 순서를 알 수 있음
+	// @RequiredArgsConstructor로 DI했음
 	private final AuthenticationManager authenticationManager;
-	
+
 	// Authentication 객체 만들어서 리턴 => 의존 : AuthenticationManager
+
 	// 인증 요청시에 실행되는 함수 => /login
 	@Override
 	public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
 			throws AuthenticationException {
-		
 		System.out.println("JwtAuthenticationFilter : 진입");
-		
+
 		// request에 있는 username과 password를 파싱해서 자바 Object로 받기
+		// objectmapper를 쓰면 꺼내짐
 		ObjectMapper om = new ObjectMapper();
 		LoginRequestDto loginRequestDto = null;
+
+		// 리퀘스트 안에 있는 정보 파싱
 		try {
+			// InputStream으로 받은 데이터를 Dto로 바꿔줌
+			// 블로그에 ObjectMapper에 대한 정리
+			// Username password가 저장됨
 			loginRequestDto = om.readValue(request.getInputStream(), LoginRequestDto.class);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		
-		System.out.println("JwtAuthenticationFilter : "+loginRequestDto);
-		
+
+		System.out.println("JwtAuthenticationFilter : " + loginRequestDto);
+
 		// 유저네임패스워드 토큰 생성
-		UsernamePasswordAuthenticationToken authenticationToken = 
-				new UsernamePasswordAuthenticationToken(
-						loginRequestDto.getUsername(), 
-						loginRequestDto.getPassword());
-		
+		// principal = 인증 주체
+		// credentials = 비밀번호
+		UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
+				loginRequestDto.getUsername(), loginRequestDto.getPassword());
+
+		System.out.println(authenticationToken.getCredentials()); // 비밀번호
+		System.out.println(authenticationToken.getName()); // ssar
+		System.out.println(authenticationToken.getPrincipal()); // ssar
+		System.out.println(authenticationToken.getAuthorities()); // USER ROLE???
 		System.out.println("JwtAuthenticationFilter : 토큰생성완료");
-		
+
 		// authenticate() 함수가 호출 되면 인증 프로바이더가 유저 디테일 서비스의
 		// loadUserByUsername(토큰의 첫번째 파라메터) 를 호출하고
 		// UserDetails를 리턴받아서 토큰의 두번째 파라메터(credential)과
 		// UserDetails(DB값)의 getPassword()함수로 비교해서 동일하면
 		// Authentication 객체를 만들어서 필터체인으로 리턴해준다.
-		
+
 		// Tip: 인증 프로바이더의 디폴트 서비스는 UserDetailsService 타입
 		// Tip: 인증 프로바이더의 디폴트 암호화 방식은 BCryptPasswordEncoder
 		// 결론은 인증 프로바이더에게 알려줄 필요가 없음.
-		Authentication authentication = 
-				authenticationManager.authenticate(authenticationToken);
-		
+		System.out.println("Authentication 실행 전");
+		Authentication authentication = authenticationManager.authenticate(authenticationToken); // provider의 일을 위임하고
+																									// 있음.
+
 		PrincipalDetails principalDetailis = (PrincipalDetails) authentication.getPrincipal();
-		System.out.println("Authentication : "+principalDetailis.getUser().getUsername());
+		System.out.println("Authentication : " + principalDetailis.getUser().getUsername());
 		return authentication;
 	}
 
@@ -77,17 +90,22 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 	@Override
 	protected void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain,
 			Authentication authResult) throws IOException, ServletException {
-		
+
 		PrincipalDetails principalDetailis = (PrincipalDetails) authResult.getPrincipal();
-		
-		String jwtToken = JWT.create()
-				.withSubject(principalDetailis.getUsername())
-				.withExpiresAt(new Date(System.currentTimeMillis()+JwtProperties.EXPIRATION_TIME))
-				.withClaim("id", principalDetailis.getUser().getId())
+		// 클레임은 페이로드에 들어감 선택적이나 iss-토큰 발급자,sub-토큰제목,exp-만료기간 이정도는 넣는게 좋다
+		// 비공개 클레임이 제일 중요하다. 유저정보에서 민감하지 않는것들만 넣는다.(ex : 패스워드, 이메일, 번호)
+		// Payload를 열때 토큰을 검증하고 만료되었는지보고
+		String jwtToken = JWT.create().withSubject(principalDetailis.getUsername())
+				.withExpiresAt(new Date(System.currentTimeMillis() + JwtProperties.EXPIRATION_TIME))
+				.withClaim("id", principalDetailis.getUser().getId()) // pk 비공개 클레임
 				.withClaim("username", principalDetailis.getUser().getUsername())
-				.sign(Algorithm.HMAC512(JwtProperties.SECRET));
-		
-		response.addHeader(JwtProperties.HEADER_STRING, JwtProperties.TOKEN_PREFIX+jwtToken);
+				.sign(Algorithm.HMAC512(JwtProperties.SECRET)); //getbytes하면 조금더
+
+		response.addHeader(JwtProperties.HEADER_STRING, JwtProperties.TOKEN_PREFIX + jwtToken);
+		//쿠키에 담을때 set-cookies 쿠키값에는 여러가지 있는데 ;으로 나뉘어져 있음
+		//이건 예시라 아님 밑에 두개 response.addHeader("set-cookies", JwtProperties.TOKEN_PREFIX+jwtToken);//헤더
+		//Cookie cookie = new Cookie("Authorization",jwtToken);
+		//response.addCookie(cookie);
 	}
-	
+
 }

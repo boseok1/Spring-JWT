@@ -9,7 +9,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import com.cos.jwtex01.model.User;
 
 public class PrincipalDetails implements UserDetails{
-
+   //여기~
 	private User user;
 
     public PrincipalDetails(User user){
@@ -19,7 +19,10 @@ public class PrincipalDetails implements UserDetails{
     public User getUser() {
 		return user;
 	}
-
+    //까지 만들고 오버라이드
+   	//setter는 세션할거면 필요하지만 
+  	//Userdetails가 Security~
+  	//로그인을 직접시키던가 UserDetails값의 객체를 수정하면 됨
     @Override
     public String getPassword() {
         return user.getPassword();
